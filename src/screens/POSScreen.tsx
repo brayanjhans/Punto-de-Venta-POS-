@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, Alert, StyleSheet, Modal } from 'react-native';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
-import BottomSheet from '@gorhom/bottom-sheet';
+// import QRCode from 'react-native-qrcode-svg'; // Se activará cuando hagamos el Paso 4 visual
 
 interface Presentation {
   id: string;
@@ -35,23 +35,18 @@ const mockProducts = [
 export const POSScreen = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCartItem, setSelectedCartItem] = useState<CartItem | null>(null);
-  
-  const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['30%', '50%'], []);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const handleScan = useCallback((barcode: string) => {
-    // 1. Find product
     const product = mockProducts.find(p => p.barcode === barcode);
     if (!product) {
       Alert.alert("Aviso", `Producto no encontrado: ${barcode}`);
       return;
     }
 
-    // 2. Add as UNIT by default
     const unitPresentation = product.presentations.find(p => p.type === 'UNIT') || product.presentations[0];
     
     setCart(prev => {
-      // Check if already in cart with same presentation
       const existing = prev.find(item => item.id === product.id && item.selectedPresentation.id === unitPresentation.id);
       if (existing) {
         return prev.map(item => 
@@ -76,84 +71,136 @@ export const POSScreen = () => {
 
   const openPresentationModal = (item: CartItem) => {
     setSelectedCartItem(item);
-    bottomSheetRef.current?.expand();
+    setModalVisible(true);
   };
 
   const changePresentation = (presentation: Presentation) => {
     if (!selectedCartItem) return;
-    
     setCart(prev => prev.map(item => 
       item.id === selectedCartItem.id ? { ...item, selectedPresentation: presentation } : item
     ));
-    bottomSheetRef.current?.close();
+    setModalVisible(false);
+  };
+
+  const handleGenerarTicket = () => {
+    if (cart.length === 0) {
+      Alert.alert("Aviso", "El carrito está vacío");
+      return;
+    }
+    const pedidoId = `PED-${Math.floor(1000 + Math.random() * 9000)}`;
+    
+    let ticketTexto = "--- COMERCIAL GOLOSINAS ---\n";
+    ticketTexto += `Pedido: ${pedidoId}\n`;
+    ticketTexto += "---------------------------\n";
+    
+    cart.forEach(item => {
+      const nombreCorto = item.productName.substring(0, 15);
+      const subtotal = (item.selectedPresentation.price * item.quantity).toFixed(2);
+      ticketTexto += `${item.quantity}x ${nombreCorto} ... $${subtotal}\n`;
+    });
+    
+    ticketTexto += "---------------------------\n";
+    ticketTexto += `TOTAL: $${total.toFixed(2)}\n`;
+    ticketTexto += "¡Gracias por su compra!\n\n";
+
+    console.log(ticketTexto);
+
+    Alert.alert(
+      "Ticket Generado: " + pedidoId, 
+      "Envíe al cliente a la caja con este código."
+    );
   };
 
   return (
-    <View className="flex-1 bg-gray-100 pt-10">
-      {/* Header */}
-      <View className="p-4 bg-blue-600 shadow-md">
-        <Text className="text-white text-2xl font-bold">POS Movil - Pre-Venta</Text>
-        <Text className="text-blue-100">Escanea un codigo (Ej: 123456)</Text>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>POS Movil - Pre-Venta</Text>
+        <Text style={styles.headerSubtitle}>Escanea un codigo (Ej: 123456)</Text>
       </View>
 
-      {/* Cart List */}
       <FlatList
         data={cart}
         keyExtractor={(item, index) => `${item.id}-${item.selectedPresentation.id}-${index}`}
-        className="flex-1 p-4"
-        ListEmptyComponent={<Text className="text-gray-500 text-center mt-10">Carrito vacio. Escanea un producto.</Text>}
+        style={styles.list}
+        ListEmptyComponent={<Text style={styles.emptyText}>Carrito vacio. Escanea un producto.</Text>}
         renderItem={({ item }) => (
           <TouchableOpacity 
             onPress={() => openPresentationModal(item)}
-            className="bg-white p-4 mb-3 rounded-xl shadow-sm flex-row justify-between items-center"
+            style={styles.cartItem}
           >
             <View>
-              <Text className="text-lg font-bold text-gray-800">{item.productName}</Text>
-              <Text className="text-sm text-blue-500 font-semibold">{item.selectedPresentation.name} (Toque para cambiar)</Text>
+              <Text style={styles.itemName}>{item.productName}</Text>
+              <Text style={styles.itemPres}>{item.selectedPresentation.name} (Toque para cambiar)</Text>
             </View>
-            <View className="items-end">
-              <Text className="text-lg font-bold">${(item.selectedPresentation.price * item.quantity).toFixed(2)}</Text>
-              <Text className="text-gray-500 text-xs font-bold">Cant: {item.quantity}</Text>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.itemTotal}>${(item.selectedPresentation.price * item.quantity).toFixed(2)}</Text>
+              <Text style={styles.itemQty}>Cant: {item.quantity}</Text>
             </View>
           </TouchableOpacity>
         )}
       />
 
-      {/* Footer Total */}
-      <View className="p-6 bg-white border-t border-gray-200">
-        <View className="flex-row justify-between mb-4">
-          <Text className="text-2xl font-bold text-gray-800">Total:</Text>
-          <Text className="text-3xl font-black text-green-600">${total.toFixed(2)}</Text>
+      <View style={styles.footer}>
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Total:</Text>
+          <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
         </View>
-        <TouchableOpacity 
-          className="bg-green-500 py-4 rounded-xl items-center shadow-lg"
-          onPress={() => Alert.alert("Ticket", "Generando Ticket Termico y QR...")}
-        >
-          <Text className="text-white text-xl font-bold">Finalizar Pre-Venta</Text>
+        <TouchableOpacity style={styles.btnTicket} onPress={handleGenerarTicket}>
+          <Text style={styles.btnTicketText}>Generar Ticket (Paso 4)</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Presentation Modal */}
-      <BottomSheet
-        ref={bottomSheetRef}
-        index={-1}
-        snapPoints={snapPoints}
-        enablePanDownToClose
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
       >
-        <View className="p-5 flex-1 bg-white">
-          <Text className="text-xl font-bold mb-4 text-gray-800">Seleccionar Presentación</Text>
-          {selectedCartItem?.presentations.map(pres => (
-            <TouchableOpacity
-              key={pres.id}
-              onPress={() => changePresentation(pres)}
-              className="py-4 border-b border-gray-100 flex-row justify-between items-center"
-            >
-              <Text className="text-lg text-gray-700">{pres.name}</Text>
-              <Text className="text-lg font-bold text-blue-600">${pres.price.toFixed(2)}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Seleccionar Presentación</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Text style={styles.modalCloseText}>Cerrar</Text>
+              </TouchableOpacity>
+            </View>
+            {selectedCartItem?.presentations.map(pres => (
+              <TouchableOpacity key={pres.id} onPress={() => changePresentation(pres)} style={styles.presOption}>
+                <Text style={styles.presName}>{pres.name}</Text>
+                <Text style={styles.presPrice}>${pres.price.toFixed(2)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-      </BottomSheet>
+      </Modal>
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f3f4f6', paddingTop: 40 },
+  header: { padding: 16, backgroundColor: '#2563eb' },
+  headerTitle: { color: 'white', fontSize: 24, fontWeight: 'bold' },
+  headerSubtitle: { color: '#bfdbfe', fontSize: 14 },
+  list: { flex: 1, padding: 16 },
+  emptyText: { textAlign: 'center', color: '#6b7280', marginTop: 40 },
+  cartItem: { backgroundColor: 'white', padding: 16, marginBottom: 12, borderRadius: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+  itemName: { fontSize: 18, fontWeight: 'bold', color: '#1f2937' },
+  itemPres: { fontSize: 14, color: '#3b82f6', fontWeight: '600' },
+  itemTotal: { fontSize: 18, fontWeight: 'bold' },
+  itemQty: { fontSize: 12, color: '#6b7280', fontWeight: 'bold' },
+  footer: { padding: 24, backgroundColor: 'white', borderTopWidth: 1, borderColor: '#e5e7eb' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+  totalLabel: { fontSize: 24, fontWeight: 'bold', color: '#1f2937' },
+  totalValue: { fontSize: 28, fontWeight: '900', color: '#16a34a' },
+  btnTicket: { backgroundColor: '#22c55e', paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
+  btnTicketText: { color: 'white', fontSize: 20, fontWeight: 'bold' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalContent: { backgroundColor: 'white', padding: 20, borderTopLeftRadius: 20, borderTopRightRadius: 20, minHeight: 300 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#1f2937' },
+  modalCloseText: { fontSize: 16, color: '#ef4444', fontWeight: 'bold' },
+  presOption: { paddingVertical: 16, borderBottomWidth: 1, borderColor: '#f3f4f6', flexDirection: 'row', justifyContent: 'space-between' },
+  presName: { fontSize: 18, color: '#374151' },
+  presPrice: { fontSize: 18, fontWeight: 'bold', color: '#2563eb' }
+});
