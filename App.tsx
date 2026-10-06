@@ -1,11 +1,11 @@
 import React from 'react';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { View } from 'react-native';
 import { POSScreen } from './src/screens/POSScreen';
 
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <View style={{ flex: 1 }}>
       <POSScreen />
-    </GestureHandlerRootView>
+    </View>
   );
 }
