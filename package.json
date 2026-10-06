@@ -7,10 +7,10 @@
     "expo-status-bar": "~1.12.1",
     "react": "18.2.0",
     "react-native": "0.74.5",
-    "lucide-react-native": "^0.392.0",
-    "react-native-keyevent": "^0.3.2",
-    "react-native-qrcode-svg": "^6.3.1",
-    "react-native-svg": "15.2.1",
+    "lucide-react-native": "*",
+    "react-native-keyevent": "*",
+    "react-native-qrcode-svg": "*",
+    "react-native-svg": "*",
     "expo-build-properties": "~0.12.5"
   },
   "devDependencies": {
